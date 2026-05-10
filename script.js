@@ -450,8 +450,8 @@ function renderDevices() {
   let filtered = state.devices.filter(d => {
     // Check page type filter
     const devType = (d.type || '').toLowerCase();
-    if (state.pageName === 'Total' && !devType.includes('total')) return false;
-    if (state.pageName === 'Level' && !devType.includes('level')) return false;
+    if (state.pageName === 'Total' && !(devType.includes('total') || devType.includes('توتال'))) return false;
+    if (state.pageName === 'Level' && !(devType.includes('level') || devType.includes('ميزان') || devType.includes('ليفل'))) return false;
 
     const term = state.searchTerm.toLowerCase();
     const searchString = `${d.serial} ${d.type} ${d.model} ${d.currentLocation}`.toLowerCase();
