@@ -307,6 +307,79 @@
       gap: 8px;
     }
 
+    /* Multi-select filter styles */
+    .multi-select {
+      position: relative;
+      width: 100%;
+      margin-top: 4px;
+      font-size: 0.8rem;
+      font-weight: normal;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    
+    .ms-header {
+      padding: 6px 8px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      background: #fff;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      min-height: 28px;
+    }
+    
+    .ms-header:hover {
+      border-color: var(--primary-color);
+    }
+    
+    .ms-arrow {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+    }
+    
+    .ms-options {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: max-content;
+      min-width: 100%;
+      max-width: 250px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      z-index: 10;
+      margin-top: 4px;
+      padding: 4px 0;
+    }
+    
+    .ms-option-item {
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    
+    .ms-option-item:hover {
+      background: var(--bg-color);
+    }
+    
+    .ms-option-item input[type="checkbox"] {
+      cursor: pointer;
+      width: auto;
+      margin: 0;
+    }
+
+    .export-box {
+      min-width: 150px;
+    }
+
     @media (max-width: 600px) {
       .top-actions {
         flex-direction: column;
@@ -414,6 +487,9 @@
         <div class="sort-box">
           <button id="btn-sort" class="btn-primary btn-block" style="height: 42px;">Sort: Ascending</button>
         </div>
+        <div class="export-box">
+          <button id="btn-export-excel" class="btn-success btn-block" style="height: 42px;">Export to Excel</button>
+        </div>
       </div>
 
       <!-- Device Data Table -->
@@ -421,12 +497,48 @@
         <table id="device-table">
           <thead>
             <tr>
-              <th>Serial</th>
-              <th>Type</th>
-              <th>Set</th>
-              <th>Model</th>
-              <th>Latest Calibration</th>
-              <th>Current Location</th>
+              <th>
+                <div>Serial</div>
+                <div class="multi-select" id="ms-serial">
+                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
+                  <div class="ms-options hidden"></div>
+                </div>
+              </th>
+              <th>
+                <div>Type</div>
+                <div class="multi-select" id="ms-type">
+                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
+                  <div class="ms-options hidden"></div>
+                </div>
+              </th>
+              <th>
+                <div>Set</div>
+                <div class="multi-select" id="ms-set">
+                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
+                  <div class="ms-options hidden"></div>
+                </div>
+              </th>
+              <th>
+                <div>Model</div>
+                <div class="multi-select" id="ms-model">
+                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
+                  <div class="ms-options hidden"></div>
+                </div>
+              </th>
+              <th>
+                <div>Latest Calibration</div>
+                <div class="multi-select" id="ms-cal-date">
+                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
+                  <div class="ms-options hidden"></div>
+                </div>
+              </th>
+              <th>
+                <div>Current Location</div>
+                <div class="multi-select" id="ms-location">
+                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
+                  <div class="ms-options hidden"></div>
+                </div>
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -470,6 +582,49 @@
       <ul id="history-list" class="history-list">
         <!-- History items injected by JS -->
       </ul>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="modal-edit" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-edit-title">Edit Device</h2>
+        <button id="btn-close-edit-modal" class="modal-close">&times;</button>
+      </div>
+      <form id="edit-device-form">
+        <input type="hidden" id="edit-dev-id">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="edit-dev-serial">Serial Number</label>
+            <input type="text" id="edit-dev-serial" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-dev-type">Type</label>
+            <input type="text" id="edit-dev-type" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-dev-set">Set / Brand</label>
+            <input type="text" id="edit-dev-set" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-dev-model">Model</label>
+            <input type="text" id="edit-dev-model" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-dev-cal-date">Latest Calibration Date</label>
+            <input type="date" id="edit-dev-cal-date" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-dev-location">Current Location</label>
+            <select id="edit-dev-location" required>
+              <option value="">Select Location</option>
+              <!-- Locations injected by JS -->
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary mt-4">Save Changes</button>
+      </form>
     </div>
   </div>
 

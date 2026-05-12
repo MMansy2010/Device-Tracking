@@ -52,9 +52,16 @@ let state = {
     "Saada"
   ],
   searchTerm: '',
-  sortOrder: 'asc', // 'asc' or 'desc'
   editDeviceId: null,
-  excelData: null // Holds parsed Excel data before saving
+  excelData: null, // Holds parsed Excel data before saving
+  columnFilters: {
+    serial: [],
+    type: [],
+    set: [],
+    model: [],
+    calDate: [],
+    location: []
+  }
 };
 
 // DOM Elements
@@ -112,6 +119,38 @@ document.addEventListener('DOMContentLoaded', () => {
   // Modal close & Submit Move
   document.getElementById('btn-close-modal').addEventListener('click', closeModal);
   document.getElementById('btn-submit-move').addEventListener('click', submitMove);
+
+  // Edit Modal Listeners
+  document.getElementById('btn-close-edit-modal').addEventListener('click', closeEditModal);
+  document.getElementById('edit-device-form').addEventListener('submit', handleEditDeviceSubmit);
+  
+  // Export Listener
+  document.getElementById('btn-export-excel').addEventListener('click', exportToExcel);
+
+  // Multi-select Listeners
+  const filterIds = ['ms-serial', 'ms-type', 'ms-set', 'ms-model', 'ms-cal-date', 'ms-location'];
+  
+  filterIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const header = el.querySelector('.ms-header');
+    const optionsCont = el.querySelector('.ms-options');
+    
+    header.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Close others
+      document.querySelectorAll('.ms-options').forEach(opt => {
+        if (opt !== optionsCont) opt.classList.add('hidden');
+      });
+      optionsCont.classList.toggle('hidden');
+    });
+  });
+
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.ms-options').forEach(opt => {
+      opt.classList.add('hidden');
+    });
+  });
 
   renderLocationOptions();
   renderView();
@@ -190,7 +229,11 @@ function loadDevices() {
 // --- Dynamic Locations ---
 
 function renderLocationOptions() {
-  const dropdowns = document.querySelectorAll('select');
+  const dropdowns = [
+    document.getElementById('dev-location'),
+    document.getElementById('modal-move-to'),
+    document.getElementById('edit-dev-location')
+  ].filter(Boolean);
   dropdowns.forEach(select => {
     const currentValue = select.value;
     select.innerHTML = '<option value="">Select Location</option>';
@@ -447,11 +490,24 @@ function renderDevices() {
   const tbody = document.getElementById('device-table-body');
   tbody.innerHTML = '';
 
-  let filtered = state.devices.filter(d => {
+  let pageDevices = state.devices.filter(d => {
     // Check page type filter
     const devType = (d.type || '').toLowerCase();
     if (state.pageName === 'Total' && !(devType.includes('total') || devType.includes('توتال'))) return false;
     if (state.pageName === 'Level' && !(devType.includes('level') || devType.includes('ميزان') || devType.includes('ليفل'))) return false;
+    return true;
+  });
+
+  populateColumnFilters(pageDevices);
+
+  let filtered = pageDevices.filter(d => {
+    // Check column filters
+    if (state.columnFilters.serial.length > 0 && !state.columnFilters.serial.includes(d.serial || '')) return false;
+    if (state.columnFilters.type.length > 0 && !state.columnFilters.type.includes(d.type || '')) return false;
+    if (state.columnFilters.set.length > 0 && !state.columnFilters.set.includes(d.set || '')) return false;
+    if (state.columnFilters.model.length > 0 && !state.columnFilters.model.includes(d.model || '')) return false;
+    if (state.columnFilters.calDate.length > 0 && !state.columnFilters.calDate.includes(d.calibrationDate || '')) return false;
+    if (state.columnFilters.location.length > 0 && !state.columnFilters.location.includes(d.currentLocation || '')) return false;
 
     const term = state.searchTerm.toLowerCase();
     const searchString = `${d.serial} ${d.type} ${d.model} ${d.currentLocation}`.toLowerCase();
@@ -485,6 +541,9 @@ function renderDevices() {
       <td>${device.calibrationDate || '-'}</td>
       <td><span style="background: var(--bg-color); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">${device.currentLocation || '-'}</span></td>
       <td class="td-actions">
+        <button class="btn-primary" onclick="editDevice('${device.id}')" title="Edit">
+          Edit
+        </button>
         <button class="btn-outline" onclick="showHistory('${device.id}')" title="Move & History">
           History
         </button>
@@ -500,6 +559,65 @@ function renderDevices() {
 
 // Global functions for inline event handlers
 window.deleteDevice = deleteDevice;
+
+window.editDevice = function(id) {
+  const device = state.devices.find(d => d.id === id);
+  if (!device) return;
+
+  document.getElementById('edit-dev-id').value = id;
+  document.getElementById('edit-dev-serial').value = device.serial || '';
+  document.getElementById('edit-dev-type').value = device.type || '';
+  document.getElementById('edit-dev-set').value = device.set || '';
+  document.getElementById('edit-dev-model').value = device.model || '';
+  document.getElementById('edit-dev-cal-date').value = device.calibrationDate || '';
+  
+  // ensure options are rendered
+  renderLocationOptions();
+  const locSelect = document.getElementById('edit-dev-location');
+  if (device.currentLocation) {
+    if (!state.locations.includes(device.currentLocation)) {
+      state.locations.push(device.currentLocation);
+      renderLocationOptions();
+    }
+    locSelect.value = device.currentLocation;
+  } else {
+    locSelect.value = "";
+  }
+
+  document.getElementById('modal-edit').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('modal-edit').classList.add('hidden');
+}
+
+async function handleEditDeviceSubmit(e) {
+  e.preventDefault();
+  const id = document.getElementById('edit-dev-id').value;
+  const serial = document.getElementById('edit-dev-serial').value;
+  const type = document.getElementById('edit-dev-type').value;
+  const setBrand = document.getElementById('edit-dev-set').value;
+  const model = document.getElementById('edit-dev-model').value;
+  const calDate = document.getElementById('edit-dev-cal-date').value;
+  const location = document.getElementById('edit-dev-location').value;
+
+  if (id && db) {
+    try {
+      await updateDoc(doc(db, 'devices', id), {
+        serial: serial,
+        type: type,
+        set: setBrand,
+        model: model,
+        calibrationDate: calDate,
+        currentLocation: location
+      });
+      closeEditModal();
+    } catch(err) {
+      console.error(err);
+      alert('Failed to update device.');
+    }
+  }
+}
 
 window.showHistory = function(id) {
   const device = state.devices.find(d => d.id === id);
@@ -540,4 +658,109 @@ window.showHistory = function(id) {
 
 function closeModal() {
   document.getElementById('modal-history').classList.add('hidden');
+}
+
+function populateColumnFilters(pageDevices) {
+  const filters = [
+    { id: 'ms-serial', key: 'serial', stateKey: 'serial' },
+    { id: 'ms-type', key: 'type', stateKey: 'type' },
+    { id: 'ms-set', key: 'set', stateKey: 'set' },
+    { id: 'ms-model', key: 'model', stateKey: 'model' },
+    { id: 'ms-cal-date', key: 'calibrationDate', stateKey: 'calDate' },
+    { id: 'ms-location', key: 'currentLocation', stateKey: 'location' }
+  ];
+
+  filters.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    const optionsCont = el.querySelector('.ms-options');
+    const titleEl = el.querySelector('.ms-title');
+    
+    const uniqueVals = [...new Set(pageDevices.map(d => d[f.key] || ''))].filter(Boolean).sort();
+    
+    // Check if current selected filters are still in the unique values
+    state.columnFilters[f.stateKey] = state.columnFilters[f.stateKey].filter(val => uniqueVals.includes(val));
+
+    optionsCont.innerHTML = '';
+    
+    uniqueVals.forEach(val => {
+      const isChecked = state.columnFilters[f.stateKey].includes(val);
+      
+      const label = document.createElement('label');
+      label.className = 'ms-option-item';
+      
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = val;
+      cb.checked = isChecked;
+      
+      cb.addEventListener('change', (e) => {
+        if (e.target.checked) {
+           if (!state.columnFilters[f.stateKey].includes(val)) {
+             state.columnFilters[f.stateKey].push(val);
+           }
+        } else {
+           state.columnFilters[f.stateKey] = state.columnFilters[f.stateKey].filter(v => v !== val);
+        }
+        renderDevices();
+      });
+
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(val));
+      
+      label.addEventListener('click', (e) => e.stopPropagation());
+      
+      optionsCont.appendChild(label);
+    });
+
+    if (state.columnFilters[f.stateKey].length === 0) {
+      titleEl.textContent = 'All';
+    } else if (state.columnFilters[f.stateKey].length === 1) {
+      titleEl.textContent = state.columnFilters[f.stateKey][0];
+    } else {
+      titleEl.textContent = `${state.columnFilters[f.stateKey].length} selected`;
+    }
+  });
+}
+
+function exportToExcel() {
+  let pageDevices = state.devices.filter(d => {
+    const devType = (d.type || '').toLowerCase();
+    if (state.pageName === 'Total' && !(devType.includes('total') || devType.includes('توتال'))) return false;
+    if (state.pageName === 'Level' && !(devType.includes('level') || devType.includes('ميزان') || devType.includes('ليفل'))) return false;
+    return true;
+  });
+
+  let filtered = pageDevices.filter(d => {
+    if (state.columnFilters.serial.length > 0 && !state.columnFilters.serial.includes(d.serial || '')) return false;
+    if (state.columnFilters.type.length > 0 && !state.columnFilters.type.includes(d.type || '')) return false;
+    if (state.columnFilters.set.length > 0 && !state.columnFilters.set.includes(d.set || '')) return false;
+    if (state.columnFilters.model.length > 0 && !state.columnFilters.model.includes(d.model || '')) return false;
+    if (state.columnFilters.calDate.length > 0 && !state.columnFilters.calDate.includes(d.calibrationDate || '')) return false;
+    if (state.columnFilters.location.length > 0 && !state.columnFilters.location.includes(d.currentLocation || '')) return false;
+
+    const term = state.searchTerm.toLowerCase();
+    const searchString = `${d.serial} ${d.type} ${d.model} ${d.currentLocation}`.toLowerCase();
+    return searchString.includes(term);
+  });
+
+  filtered.sort((a, b) => {
+    const valA = (a.serial || '').toLowerCase();
+    const valB = (b.serial || '').toLowerCase();
+    return state.sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+  });
+
+  const exportData = filtered.map(d => ({
+    "Serial Number": d.serial || '-',
+    "Type": d.type || '-',
+    "Set / Brand": d.set || '-',
+    "Model": d.model || '-',
+    "Latest Calibration": d.calibrationDate || '-',
+    "Current Location": d.currentLocation || '-'
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Devices");
+  XLSX.writeFile(workbook, `${state.pageName}_Devices.xlsx`);
 }
