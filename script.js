@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
-import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, onSnapshot, doc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -52,8 +52,11 @@ let state = {
     "Saada"
   ],
   searchTerm: '',
+  sortOrder: 'asc',
   editDeviceId: null,
-  excelData: null, // Holds parsed Excel data before saving
+  excelData: null,
+  customColumns: [],
+  customColumnFilters: {},
   columnFilters: {
     serial: [],
     type: [],
@@ -127,29 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Export Listener
   document.getElementById('btn-export-excel').addEventListener('click', exportToExcel);
 
-  // Multi-select Listeners
-  const filterIds = ['ms-serial', 'ms-type', 'ms-set', 'ms-model', 'ms-cal-date', 'ms-location'];
-  
-  filterIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const header = el.querySelector('.ms-header');
-    const optionsCont = el.querySelector('.ms-options');
-    
-    header.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Close others
-      document.querySelectorAll('.ms-options').forEach(opt => {
-        if (opt !== optionsCont) opt.classList.add('hidden');
-      });
-      optionsCont.classList.toggle('hidden');
-    });
-  });
+  // Add Column Listener
+  document.getElementById('btn-add-column').addEventListener('click', addCustomColumn);
 
+  // Close all dropdowns on outside click
   document.addEventListener('click', () => {
-    document.querySelectorAll('.ms-options').forEach(opt => {
-      opt.classList.add('hidden');
-    });
+    document.querySelectorAll('.ms-options').forEach(opt => opt.classList.add('hidden'));
   });
 
   renderLocationOptions();
@@ -169,6 +155,7 @@ function handleLogin(e) {
     document.getElementById('username').value = '';
     document.getElementById('password').value = '';
     loadDevices();
+    loadSettings();
     renderView();
   } else {
     alert('Invalid credentials');
@@ -401,22 +388,25 @@ async function handleAddDevice(e) {
 
   if (serial && type && location && location !== 'other') {
     if (db) {
+      const customData = {};
+      state.customColumns.forEach(col => {
+        const input = document.getElementById(`add-custom-${col}`);
+        if (input) customData[col] = input.value;
+      });
       try {
         await addDoc(collection(db, 'devices'), {
-          serial: serial,
-          type: type,
-          set: setBrand,
-          model: model,
+          serial, type, set: setBrand, model,
           calibrationDate: calDate,
           currentLocation: location,
-          moveHistory: [{ 
-            date: new Date().toISOString().split('T')[0], 
-            locationFrom: "Initial Entry", 
-            locationTo: location 
+          customData,
+          moveHistory: [{
+            date: new Date().toISOString().split('T')[0],
+            locationFrom: 'Initial Entry',
+            locationTo: location
           }]
         });
       } catch (e) {
-        console.error("Error adding document: ", e);
+        console.error('Error adding document: ', e);
       }
     } else {
       alert("Database not connected!");
@@ -501,58 +491,58 @@ function renderDevices() {
   populateColumnFilters(pageDevices);
 
   let filtered = pageDevices.filter(d => {
-    // Check column filters
     if (state.columnFilters.serial.length > 0 && !state.columnFilters.serial.includes(d.serial || '')) return false;
     if (state.columnFilters.type.length > 0 && !state.columnFilters.type.includes(d.type || '')) return false;
     if (state.columnFilters.set.length > 0 && !state.columnFilters.set.includes(d.set || '')) return false;
     if (state.columnFilters.model.length > 0 && !state.columnFilters.model.includes(d.model || '')) return false;
     if (state.columnFilters.calDate.length > 0 && !state.columnFilters.calDate.includes(d.calibrationDate || '')) return false;
     if (state.columnFilters.location.length > 0 && !state.columnFilters.location.includes(d.currentLocation || '')) return false;
-
+    // Custom column filters
+    for (const col of state.customColumns) {
+      const arr = state.customColumnFilters[col] || [];
+      if (arr.length > 0) {
+        const val = (d.customData && d.customData[col]) ? d.customData[col] : '';
+        if (!arr.includes(val)) return false;
+      }
+    }
     const term = state.searchTerm.toLowerCase();
     const searchString = `${d.serial} ${d.type} ${d.model} ${d.currentLocation}`.toLowerCase();
     return searchString.includes(term);
   });
 
   filtered.sort((a, b) => {
-    const valA = (a.serial || '').toLowerCase();
-    const valB = (b.serial || '').toLowerCase();
-    if (state.sortOrder === 'asc') {
-      return valA.localeCompare(valB);
-    } else {
-      return valB.localeCompare(valA);
-    }
+    const valA = (a.currentLocation || '').toLowerCase();
+    const valB = (b.currentLocation || '').toLowerCase();
+    return state.sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
   });
 
+  const totalCols = 7 + state.customColumns.length;
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No devices found.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align: center; color: var(--text-muted);">No devices found.</td></tr>`;
     return;
   }
 
   filtered.forEach(device => {
     const tr = document.createElement('tr');
-    
-    // We can make cells editable in the future, for now display them
-    tr.innerHTML = `
+    let html = `
       <td><strong>${device.serial || '-'}</strong></td>
       <td>${device.type || '-'}</td>
       <td>${device.set || '-'}</td>
       <td>${device.model || '-'}</td>
       <td>${device.calibrationDate || '-'}</td>
       <td><span style="background: var(--bg-color); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">${device.currentLocation || '-'}</span></td>
-      <td class="td-actions">
-        <button class="btn-primary" onclick="editDevice('${device.id}')" title="Edit">
-          Edit
-        </button>
-        <button class="btn-outline" onclick="showHistory('${device.id}')" title="Move & History">
-          History
-        </button>
-        <button class="btn-danger" onclick="deleteDevice('${device.id}')" title="Delete">
-          &times;
-        </button>
-      </td>
     `;
-
+    state.customColumns.forEach(col => {
+      const val = (device.customData && device.customData[col]) ? device.customData[col] : '-';
+      html += `<td>${val}</td>`;
+    });
+    html += `
+      <td class="td-actions">
+        <button class="btn-primary" onclick="editDevice('${device.id}')">Edit</button>
+        <button class="btn-outline" onclick="showHistory('${device.id}')">History</button>
+        <button class="btn-danger" onclick="deleteDevice('${device.id}')">&times;</button>
+      </td>`;
+    tr.innerHTML = html;
     tbody.appendChild(tr);
   });
 }
@@ -570,8 +560,7 @@ window.editDevice = function(id) {
   document.getElementById('edit-dev-set').value = device.set || '';
   document.getElementById('edit-dev-model').value = device.model || '';
   document.getElementById('edit-dev-cal-date').value = device.calibrationDate || '';
-  
-  // ensure options are rendered
+
   renderLocationOptions();
   const locSelect = document.getElementById('edit-dev-location');
   if (device.currentLocation) {
@@ -581,8 +570,15 @@ window.editDevice = function(id) {
     }
     locSelect.value = device.currentLocation;
   } else {
-    locSelect.value = "";
+    locSelect.value = '';
   }
+
+  // Populate custom column fields
+  renderCustomFormFields('custom-fields-edit', 'edit-custom-');
+  state.customColumns.forEach(col => {
+    const input = document.getElementById(`edit-custom-${col}`);
+    if (input) input.value = (device.customData && device.customData[col]) ? device.customData[col] : '';
+  });
 
   document.getElementById('modal-edit').classList.remove('hidden');
 }
@@ -601,15 +597,19 @@ async function handleEditDeviceSubmit(e) {
   const calDate = document.getElementById('edit-dev-cal-date').value;
   const location = document.getElementById('edit-dev-location').value;
 
+  const customData = {};
+  state.customColumns.forEach(col => {
+    const input = document.getElementById(`edit-custom-${col}`);
+    if (input) customData[col] = input.value;
+  });
+
   if (id && db) {
     try {
       await updateDoc(doc(db, 'devices', id), {
-        serial: serial,
-        type: type,
-        set: setBrand,
-        model: model,
+        serial, type, set: setBrand, model,
         calibrationDate: calDate,
-        currentLocation: location
+        currentLocation: location,
+        customData
       });
       closeEditModal();
     } catch(err) {
@@ -662,64 +662,82 @@ function closeModal() {
 
 function populateColumnFilters(pageDevices) {
   const filters = [
-    { id: 'ms-serial', key: 'serial', stateKey: 'serial' },
-    { id: 'ms-type', key: 'type', stateKey: 'type' },
-    { id: 'ms-set', key: 'set', stateKey: 'set' },
-    { id: 'ms-model', key: 'model', stateKey: 'model' },
-    { id: 'ms-cal-date', key: 'calibrationDate', stateKey: 'calDate' },
-    { id: 'ms-location', key: 'currentLocation', stateKey: 'location' }
+    { id: 'ms-serial',   key: 'serial',           stateKey: 'serial' },
+    { id: 'ms-type',     key: 'type',             stateKey: 'type' },
+    { id: 'ms-set',      key: 'set',              stateKey: 'set' },
+    { id: 'ms-model',    key: 'model',            stateKey: 'model' },
+    { id: 'ms-cal-date', key: 'calibrationDate',  stateKey: 'calDate' },
+    { id: 'ms-location', key: 'currentLocation',  stateKey: 'location' }
   ];
+  // Custom columns
+  state.customColumns.forEach(col => {
+    filters.push({ id: `ms-custom-${col.replace(/\s+/g,'-')}`, isCustom: true, colName: col });
+  });
 
   filters.forEach(f => {
     const el = document.getElementById(f.id);
     if (!el) return;
     const optionsCont = el.querySelector('.ms-options');
     const titleEl = el.querySelector('.ms-title');
-    
-    const uniqueVals = [...new Set(pageDevices.map(d => d[f.key] || ''))].filter(Boolean).sort();
-    
-    // Check if current selected filters are still in the unique values
-    state.columnFilters[f.stateKey] = state.columnFilters[f.stateKey].filter(val => uniqueVals.includes(val));
+
+    let uniqueVals, currentFilter;
+    if (f.isCustom) {
+      if (!state.customColumnFilters[f.colName]) state.customColumnFilters[f.colName] = [];
+      uniqueVals = [...new Set(pageDevices.map(d => (d.customData && d.customData[f.colName]) || ''))].filter(Boolean).sort();
+      state.customColumnFilters[f.colName] = state.customColumnFilters[f.colName].filter(v => uniqueVals.includes(v));
+      currentFilter = state.customColumnFilters[f.colName];
+    } else {
+      uniqueVals = [...new Set(pageDevices.map(d => d[f.key] || ''))].filter(Boolean).sort();
+      state.columnFilters[f.stateKey] = state.columnFilters[f.stateKey].filter(v => uniqueVals.includes(v));
+      currentFilter = state.columnFilters[f.stateKey];
+    }
 
     optionsCont.innerHTML = '';
-    
+
+    // "All" master checkbox
+    const allLabel = document.createElement('label');
+    allLabel.className = 'ms-option-item ms-option-all';
+    const allCb = document.createElement('input');
+    allCb.type = 'checkbox';
+    allCb.checked = currentFilter.length === 0;
+    allCb.addEventListener('change', () => {
+      if (f.isCustom) state.customColumnFilters[f.colName] = [];
+      else state.columnFilters[f.stateKey] = [];
+      renderDevices();
+    });
+    allLabel.appendChild(allCb);
+    allLabel.appendChild(document.createTextNode(' All'));
+    allLabel.addEventListener('click', e => e.stopPropagation());
+    optionsCont.appendChild(allLabel);
+
+    // Individual options
     uniqueVals.forEach(val => {
-      const isChecked = state.columnFilters[f.stateKey].includes(val);
-      
       const label = document.createElement('label');
       label.className = 'ms-option-item';
-      
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.value = val;
-      cb.checked = isChecked;
-      
-      cb.addEventListener('change', (e) => {
-        if (e.target.checked) {
-           if (!state.columnFilters[f.stateKey].includes(val)) {
-             state.columnFilters[f.stateKey].push(val);
-           }
+      cb.checked = currentFilter.includes(val);
+      cb.addEventListener('change', e => {
+        if (f.isCustom) {
+          if (e.target.checked) { if (!state.customColumnFilters[f.colName].includes(val)) state.customColumnFilters[f.colName].push(val); }
+          else state.customColumnFilters[f.colName] = state.customColumnFilters[f.colName].filter(v => v !== val);
         } else {
-           state.columnFilters[f.stateKey] = state.columnFilters[f.stateKey].filter(v => v !== val);
+          if (e.target.checked) { if (!state.columnFilters[f.stateKey].includes(val)) state.columnFilters[f.stateKey].push(val); }
+          else state.columnFilters[f.stateKey] = state.columnFilters[f.stateKey].filter(v => v !== val);
         }
         renderDevices();
       });
-
       label.appendChild(cb);
       label.appendChild(document.createTextNode(val));
-      
-      label.addEventListener('click', (e) => e.stopPropagation());
-      
+      label.addEventListener('click', e => e.stopPropagation());
       optionsCont.appendChild(label);
     });
 
-    if (state.columnFilters[f.stateKey].length === 0) {
-      titleEl.textContent = 'All';
-    } else if (state.columnFilters[f.stateKey].length === 1) {
-      titleEl.textContent = state.columnFilters[f.stateKey][0];
-    } else {
-      titleEl.textContent = `${state.columnFilters[f.stateKey].length} selected`;
-    }
+    const active = f.isCustom ? state.customColumnFilters[f.colName] : state.columnFilters[f.stateKey];
+    if (active.length === 0) titleEl.textContent = 'All';
+    else if (active.length === 1) titleEl.textContent = active[0];
+    else titleEl.textContent = `${active.length} selected`;
   });
 }
 
@@ -738,29 +756,131 @@ function exportToExcel() {
     if (state.columnFilters.model.length > 0 && !state.columnFilters.model.includes(d.model || '')) return false;
     if (state.columnFilters.calDate.length > 0 && !state.columnFilters.calDate.includes(d.calibrationDate || '')) return false;
     if (state.columnFilters.location.length > 0 && !state.columnFilters.location.includes(d.currentLocation || '')) return false;
-
+    for (const col of state.customColumns) {
+      const arr = state.customColumnFilters[col] || [];
+      if (arr.length > 0) {
+        const val = (d.customData && d.customData[col]) ? d.customData[col] : '';
+        if (!arr.includes(val)) return false;
+      }
+    }
     const term = state.searchTerm.toLowerCase();
-    const searchString = `${d.serial} ${d.type} ${d.model} ${d.currentLocation}`.toLowerCase();
-    return searchString.includes(term);
+    return `${d.serial} ${d.type} ${d.model} ${d.currentLocation}`.toLowerCase().includes(term);
   });
 
   filtered.sort((a, b) => {
-    const valA = (a.serial || '').toLowerCase();
-    const valB = (b.serial || '').toLowerCase();
+    const valA = (a.currentLocation || '').toLowerCase();
+    const valB = (b.currentLocation || '').toLowerCase();
     return state.sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
   });
 
-  const exportData = filtered.map(d => ({
-    "Serial Number": d.serial || '-',
-    "Type": d.type || '-',
-    "Set / Brand": d.set || '-',
-    "Model": d.model || '-',
-    "Latest Calibration": d.calibrationDate || '-',
-    "Current Location": d.currentLocation || '-'
-  }));
+  const exportData = filtered.map(d => {
+    const row = {
+      'Serial Number': d.serial || '-',
+      'Type': d.type || '-',
+      'Set / Brand': d.set || '-',
+      'Model': d.model || '-',
+      'Latest Calibration': d.calibrationDate || '-',
+      'Current Location': d.currentLocation || '-'
+    };
+    state.customColumns.forEach(col => {
+      row[col] = (d.customData && d.customData[col]) ? d.customData[col] : '-';
+    });
+    return row;
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(exportData);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Devices");
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Devices');
   XLSX.writeFile(workbook, `${state.pageName}_Devices.xlsx`);
+}
+
+// --- Settings / Custom Columns ---
+
+async function loadSettings() {
+  if (!db) return;
+  try {
+    const docSnap = await getDoc(doc(db, 'settings', 'columns'));
+    if (docSnap.exists()) {
+      state.customColumns = docSnap.data().columns || [];
+      state.customColumns.forEach(col => {
+        if (!state.customColumnFilters[col]) state.customColumnFilters[col] = [];
+      });
+    }
+  } catch(e) {
+    console.error('Error loading settings:', e);
+  }
+  renderTableHeaders();
+  renderCustomFormFields('custom-fields-add', 'add-custom-');
+  renderCustomFormFields('custom-fields-edit', 'edit-custom-');
+}
+
+async function saveCustomColumns() {
+  if (!db) return;
+  try {
+    await setDoc(doc(db, 'settings', 'columns'), { columns: state.customColumns });
+  } catch(e) {
+    console.error('Error saving columns:', e);
+  }
+}
+
+function renderTableHeaders() {
+  const thead = document.querySelector('#device-table thead');
+  if (!thead) return;
+  const defaultCols = [
+    { label: 'Serial',             msId: 'ms-serial' },
+    { label: 'Type',               msId: 'ms-type' },
+    { label: 'Set',                msId: 'ms-set' },
+    { label: 'Model',              msId: 'ms-model' },
+    { label: 'Latest Calibration', msId: 'ms-cal-date' },
+    { label: 'Current Location',   msId: 'ms-location' }
+  ];
+  let html = '<tr>';
+  defaultCols.forEach(col => {
+    html += `<th><div>${col.label}</div><div class="multi-select" id="${col.msId}"><div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">&#9660;</span></div><div class="ms-options hidden"></div></div></th>`;
+  });
+  state.customColumns.forEach(col => {
+    const msId = `ms-custom-${col.replace(/\s+/g, '-')}`;
+    html += `<th><div>${col}</div><div class="multi-select" id="${msId}"><div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">&#9660;</span></div><div class="ms-options hidden"></div></div></th>`;
+  });
+  html += '<th>Actions</th></tr>';
+  thead.innerHTML = html;
+  // Re-attach dropdown toggle listeners
+  thead.querySelectorAll('.multi-select').forEach(el => {
+    const header = el.querySelector('.ms-header');
+    const optionsCont = el.querySelector('.ms-options');
+    header.addEventListener('click', e => {
+      e.stopPropagation();
+      document.querySelectorAll('.ms-options').forEach(o => { if (o !== optionsCont) o.classList.add('hidden'); });
+      optionsCont.classList.toggle('hidden');
+    });
+  });
+}
+
+function renderCustomFormFields(containerId, prefix) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  state.customColumns.forEach(col => {
+    const div = document.createElement('div');
+    div.className = 'form-group';
+    div.innerHTML = `<label for="${prefix}${col}">${col}</label><input type="text" id="${prefix}${col}" placeholder="${col}">`;
+    container.appendChild(div);
+  });
+}
+
+async function addCustomColumn() {
+  const name = prompt('Enter a name for the new column:');
+  if (!name || !name.trim()) return;
+  const colName = name.trim();
+  if (state.customColumns.includes(colName)) {
+    alert('A column with that name already exists.');
+    return;
+  }
+  state.customColumns.push(colName);
+  state.customColumnFilters[colName] = [];
+  await saveCustomColumns();
+  renderTableHeaders();
+  renderCustomFormFields('custom-fields-add', 'add-custom-');
+  renderCustomFormFields('custom-fields-edit', 'edit-custom-');
+  renderDevices();
 }

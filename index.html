@@ -9,388 +9,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- SheetJS for Excel Parsing -->
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <style>
-    :root {
-      --primary-color: #3b82f6;
-      --primary-hover: #2563eb;
-      --danger-color: #ef4444;
-      --danger-hover: #dc2626;
-      --success-color: #10b981;
-      --success-hover: #059669;
-      --bg-color: #f8fafc;
-      --card-bg: #ffffff;
-      --text-main: #1e293b;
-      --text-muted: #64748b;
-      --border-color: #e2e8f0;
-      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-      --radius: 8px;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-main);
-      line-height: 1.5;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .app-container {
-      max-width: 1200px;
-      margin: 40px auto;
-      padding: 0 20px;
-      flex: 1;
-      width: 100%;
-    }
-
-    h1, h2, h3, h4 {
-      color: var(--text-main);
-      font-weight: 600;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .card {
-      background-color: var(--card-bg);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-md);
-      padding: 24px;
-      margin-bottom: 24px;
-      border: 1px solid var(--border-color);
-    }
-
-    .text-center {
-      text-align: center;
-    }
-
-    .mb-4 { margin-bottom: 16px; }
-    .mb-6 { margin-bottom: 24px; }
-    .mt-4 { margin-top: 16px; }
-
-    /* Form Styles */
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 16px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: 500;
-      color: var(--text-main);
-      font-size: 0.9rem;
-    }
-
-    input[type="text"],
-    input[type="password"],
-    input[type="date"],
-    select {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      font-family: 'Inter', sans-serif;
-      font-size: 1rem;
-      transition: all 0.2s ease;
-      background-color: #fff;
-    }
-
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    /* Buttons */
-    button, .btn {
-      font-family: 'Inter', sans-serif;
-      font-weight: 500;
-      padding: 10px 16px;
-      border: none;
-      border-radius: var(--radius);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 1rem;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      text-decoration: none;
-    }
-
-    button:active, .btn:active {
-      transform: translateY(1px);
-    }
-
-    .btn-primary { background-color: var(--primary-color); color: white; }
-    .btn-primary:hover { background-color: var(--primary-hover); }
-
-    .btn-success { background-color: var(--success-color); color: white; }
-    .btn-success:hover { background-color: var(--success-hover); }
-
-    .btn-danger { background-color: var(--danger-color); color: white; }
-    .btn-danger:hover { background-color: var(--danger-hover); }
-
-    .btn-outline {
-      background-color: transparent;
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-    }
-    .btn-outline:hover { background-color: var(--bg-color); }
-
-    .btn-block { width: 100%; }
-
-    /* Specific Views */
-    #view-login {
-      max-width: 400px;
-      margin: 80px auto;
-    }
-
-    #view-page-select .button-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      max-width: 300px;
-      margin: 0 auto;
-    }
-
-    /* Top Bar Search / Sort */
-    .top-actions {
-      display: flex;
-      gap: 16px;
-      align-items: flex-end;
-      flex-wrap: wrap;
-    }
-    .search-box {
-      flex: 1;
-      min-width: 250px;
-    }
-    .sort-box {
-      min-width: 150px;
-    }
-
-    /* Table Styles */
-    .table-responsive {
-      overflow-x: auto;
-      background: var(--card-bg);
-      border-radius: var(--radius);
-      border: 1px solid var(--border-color);
-      box-shadow: var(--shadow-sm);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 800px;
-    }
-    th, td {
-      padding: 12px 16px;
-      text-align: left;
-      border-bottom: 1px solid var(--border-color);
-    }
-    th {
-      background-color: var(--bg-color);
-      font-weight: 600;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    tr:hover td {
-      background-color: #f1f5f9;
-    }
-    .td-actions {
-      display: flex;
-      gap: 8px;
-    }
-    .td-actions button {
-      padding: 6px 10px;
-      font-size: 0.85rem;
-    }
-
-    /* Upload Container */
-    .upload-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid var(--border-color);
-    }
-
-    /* Modal */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(15, 23, 42, 0.5);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 20px;
-    }
-    .modal-content {
-      background: var(--card-bg);
-      width: 100%;
-      max-width: 600px;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      padding: 24px;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 12px;
-    }
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .history-list {
-      list-style: none;
-      padding: 0;
-    }
-    .history-item {
-      padding: 12px;
-      border-bottom: 1px solid var(--border-color);
-    }
-    .history-item:last-child {
-      border-bottom: none;
-    }
-
-    /* Footer */
-    .app-footer {
-      text-align: center;
-      padding: 24px;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      background-color: var(--card-bg);
-      border-top: 1px solid var(--border-color);
-      margin-top: auto;
-    }
-
-    /* Dynamic inputs */
-    .dynamic-input-container {
-      margin-top: 8px;
-      display: flex;
-      gap: 8px;
-    }
-
-    /* Multi-select filter styles */
-    .multi-select {
-      position: relative;
-      width: 100%;
-      margin-top: 4px;
-      font-size: 0.8rem;
-      font-weight: normal;
-      text-transform: none;
-      letter-spacing: normal;
-    }
-    
-    .ms-header {
-      padding: 6px 8px;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      background: #fff;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      user-select: none;
-      min-height: 28px;
-    }
-    
-    .ms-header:hover {
-      border-color: var(--primary-color);
-    }
-    
-    .ms-arrow {
-      font-size: 0.6rem;
-      color: var(--text-muted);
-    }
-    
-    .ms-options {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      width: max-content;
-      min-width: 100%;
-      max-width: 250px;
-      max-height: 200px;
-      overflow-y: auto;
-      background: #fff;
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      z-index: 10;
-      margin-top: 4px;
-      padding: 4px 0;
-    }
-    
-    .ms-option-item {
-      padding: 6px 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-    }
-    
-    .ms-option-item:hover {
-      background: var(--bg-color);
-    }
-    
-    .ms-option-item input[type="checkbox"] {
-      cursor: pointer;
-      width: auto;
-      margin: 0;
-    }
-
-    .export-box {
-      min-width: 150px;
-    }
-
-    @media (max-width: 600px) {
-      .top-actions {
-        flex-direction: column;
-        align-items: stretch;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-container">
-    
+
     <!-- LOGIN VIEW -->
     <div id="view-login" class="view card text-center">
       <h1 class="mb-6">Device Tracking App</h1>
@@ -456,7 +79,6 @@
               <label for="dev-location">Current Location</label>
               <select id="dev-location" required>
                 <option value="">Select Location</option>
-                <!-- Locations injected by JS -->
               </select>
               <div id="dev-loc-other-container" class="dynamic-input-container hidden">
                 <input type="text" id="dev-loc-other" placeholder="Enter new location">
@@ -464,6 +86,8 @@
               </div>
             </div>
           </div>
+          <!-- Custom column fields – injected by JS -->
+          <div class="form-grid" id="custom-fields-add"></div>
           <button type="submit" class="btn-primary mt-4">Add Device Manually</button>
         </form>
 
@@ -490,57 +114,16 @@
         <div class="export-box">
           <button id="btn-export-excel" class="btn-success btn-block" style="height: 42px;">Export to Excel</button>
         </div>
+        <div class="add-col-box">
+          <button id="btn-add-column" class="btn-outline btn-block" style="height: 42px;">＋ Add Column</button>
+        </div>
       </div>
 
       <!-- Device Data Table -->
       <div class="table-responsive">
         <table id="device-table">
           <thead>
-            <tr>
-              <th>
-                <div>Serial</div>
-                <div class="multi-select" id="ms-serial">
-                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
-                  <div class="ms-options hidden"></div>
-                </div>
-              </th>
-              <th>
-                <div>Type</div>
-                <div class="multi-select" id="ms-type">
-                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
-                  <div class="ms-options hidden"></div>
-                </div>
-              </th>
-              <th>
-                <div>Set</div>
-                <div class="multi-select" id="ms-set">
-                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
-                  <div class="ms-options hidden"></div>
-                </div>
-              </th>
-              <th>
-                <div>Model</div>
-                <div class="multi-select" id="ms-model">
-                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
-                  <div class="ms-options hidden"></div>
-                </div>
-              </th>
-              <th>
-                <div>Latest Calibration</div>
-                <div class="multi-select" id="ms-cal-date">
-                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
-                  <div class="ms-options hidden"></div>
-                </div>
-              </th>
-              <th>
-                <div>Current Location</div>
-                <div class="multi-select" id="ms-location">
-                  <div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">▼</span></div>
-                  <div class="ms-options hidden"></div>
-                </div>
-              </th>
-              <th>Actions</th>
-            </tr>
+            <!-- Headers injected by JS (renderTableHeaders) -->
           </thead>
           <tbody id="device-table-body">
             <!-- Devices injected by JS -->
@@ -558,7 +141,6 @@
         <h2 id="modal-device-name">Move History</h2>
         <button id="btn-close-modal" class="modal-close">&times;</button>
       </div>
-      
       <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
         <h4>Add New Move</h4>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
@@ -569,19 +151,14 @@
           </div>
           <div style="flex: 1; min-width: 150px;">
             <label>New Location (To)</label>
-            <select id="modal-move-to">
-              <!-- Options -->
-            </select>
+            <select id="modal-move-to"></select>
           </div>
           <div style="display: flex; align-items: flex-end;">
             <button class="btn-success" id="btn-submit-move">Save Move</button>
           </div>
         </div>
       </div>
-
-      <ul id="history-list" class="history-list">
-        <!-- History items injected by JS -->
-      </ul>
+      <ul id="history-list" class="history-list"></ul>
     </div>
   </div>
 
@@ -619,10 +196,11 @@
             <label for="edit-dev-location">Current Location</label>
             <select id="edit-dev-location" required>
               <option value="">Select Location</option>
-              <!-- Locations injected by JS -->
             </select>
           </div>
         </div>
+        <!-- Custom column fields – injected by JS -->
+        <div class="form-grid" id="custom-fields-edit"></div>
         <button type="submit" class="btn-primary mt-4">Save Changes</button>
       </form>
     </div>
