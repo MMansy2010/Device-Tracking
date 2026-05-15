@@ -1045,8 +1045,17 @@ function checkAndSendAutomaticAlerts() {
   const today = new Date().toISOString().split('T')[0];
   const lastSent = localStorage.getItem('lastAlertSentDate');
 
-  // Only send once per day
+  // Only run the daily check once per day
   if (lastSent === today) return;
+
+  // Track yellow alerts sent to avoid repeats for the same calibration date
+  let sentYellow = {};
+  try {
+    const saved = localStorage.getItem('sentYellowAlerts');
+    if (saved) sentYellow = JSON.parse(saved);
+  } catch(e) {
+    console.error("Error parsing sentYellowAlerts", e);
+  }
 
   const redDevices = [];
   const yellowDevices = [];
@@ -1054,12 +1063,20 @@ function checkAndSendAutomaticAlerts() {
   state.devices.forEach(device => {
     if (!device.calibrationDate) return;
     const calClass = getCalibrationClass(device.calibrationDate);
-    if (calClass === 'cal-red') redDevices.push(device);
-    if (calClass === 'cal-yellow') yellowDevices.push(device);
+    
+    if (calClass === 'cal-red') {
+      // Red devices are sent every day (whenever this check runs on a new day)
+      redDevices.push(device);
+    } else if (calClass === 'cal-yellow') {
+      // Yellow devices are sent only once per calibration date
+      if (sentYellow[device.id] !== device.calibrationDate) {
+        yellowDevices.push(device);
+      }
+    }
   });
 
+  // If no new alerts to send today, just mark the day as checked
   if (redDevices.length === 0 && yellowDevices.length === 0) {
-    // Everything is fine, mark as checked today so it doesn't keep calculating
     localStorage.setItem('lastAlertSentDate', today);
     return;
   }
@@ -1068,9 +1085,20 @@ function checkAndSendAutomaticAlerts() {
   if (window.emailjs) {
     const emailPromises = [];
 
-    // Send individual email for each RED device
+    // Send individual email for each RED device (Every Day)
     redDevices.forEach(d => {
-      const body = `=== URGENT: Calibration Required ===\n\n- The device with serial ${d.serial || 'Unknown'} and in the location ${d.currentLocation || 'Unknown'} wants to be collaborated.`;
+      const body = `=== URGENT: Calibration Required ===
+
+The following device requires immediate calibration:
+
+- Serial Number: ${d.serial || 'N/A'}
+- Device Type: ${d.type || 'N/A'}
+- Model: ${d.model || 'N/A'}
+- Current Location: ${d.currentLocation || 'N/A'}
+- Last Calibration Date: ${d.calibrationDate || 'N/A'}
+
+Please take necessary action immediately to ensure device accuracy.`;
+
       const templateParams = {
         to_email: "ahmad76saad@gmail.com",
         message: body
@@ -1078,21 +1106,38 @@ function checkAndSendAutomaticAlerts() {
       emailPromises.push(emailjs.send("service_44uofyg", "template_6yvfdvs", templateParams));
     });
 
-    // Send individual email for each YELLOW device
+    // Send individual email for each YELLOW device (Once)
     yellowDevices.forEach(d => {
-      const body = `=== WARNING: Calibration Approaching ===\n\n- Warning: The time is near for the device with serial ${d.serial || 'Unknown'} in location ${d.currentLocation || 'Unknown'}.`;
+      const body = `=== WARNING: Calibration Approaching ===
+
+This is a reminder that the calibration for the following device is approaching its expiration:
+
+- Serial Number: ${d.serial || 'N/A'}
+- Device Type: ${d.type || 'N/A'}
+- Model: ${d.model || 'N/A'}
+- Current Location: ${d.currentLocation || 'N/A'}
+- Last Calibration Date: ${d.calibrationDate || 'N/A'}
+
+Please plan for calibration soon to avoid any operational delays.`;
+
       const templateParams = {
         to_email: "ahmad76saad@gmail.com",
         message: body
       };
       emailPromises.push(emailjs.send("service_44uofyg", "template_6yvfdvs", templateParams));
+      
+      // Mark this device's current yellow state as "sent"
+      sentYellow[d.id] = d.calibrationDate;
     });
 
     // Wait for all emails to finish sending
     Promise.all(emailPromises)
       .then(function(responses) {
-        console.log(`SUCCESS! ${responses.length} individual automatic alerts sent.`);
+        console.log(`SUCCESS! ${responses.length} automatic alerts sent.`);
+        // Mark today as done
         localStorage.setItem('lastAlertSentDate', today);
+        // Save updated yellow tracking
+        localStorage.setItem('sentYellowAlerts', JSON.stringify(sentYellow));
       })
       .catch(function(error) {
         console.error('FAILED to send some automatic alerts...', error);
