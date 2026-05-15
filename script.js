@@ -560,7 +560,7 @@ function renderDevices() {
       <td>${device.type || '-'}</td>
       <td>${device.set || '-'}</td>
       <td>${device.model || '-'}</td>
-      <td class="${calClass}">${device.calibrationDate || '-'}</td>
+      <td><span class="${calClass}">${device.calibrationDate || '-'}</span></td>
       <td><span style="background: var(--bg-color); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">${device.currentLocation || '-'}</span></td>
     `;
     state.customColumns.forEach(col => {
