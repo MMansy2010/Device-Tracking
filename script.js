@@ -57,6 +57,8 @@ let state = {
   excelData: null,
   customColumns: [],
   customColumnFilters: {},
+  deleteMode: false,
+  selectedDevices: [],
   columnFilters: {
     serial: [],
     type: [],
@@ -71,7 +73,8 @@ let state = {
 const views = {
   login: document.getElementById('view-login'),
   pageSelect: document.getElementById('view-page-select'),
-  tracker: document.getElementById('view-tracker')
+  tracker: document.getElementById('view-tracker'),
+  statistics: document.getElementById('view-statistics')
 };
 
 // Initialization
@@ -138,6 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.ms-options').forEach(opt => opt.classList.add('hidden'));
   });
 
+  // Statistics page
+  document.getElementById('btn-page-stats').addEventListener('click', navigateToStats);
+  document.getElementById('btn-back-from-stats').addEventListener('click', () => { state.page = 'choose'; renderView(); });
+  document.getElementById('btn-logout-stats').addEventListener('click', handleLogout);
+
+  // Delete mode
+  document.getElementById('btn-delete-mode').addEventListener('click', toggleDeleteMode);
+  document.getElementById('btn-cancel-delete').addEventListener('click', cancelDeleteMode);
+
+  // Initialize EmailJS
+  if (window.emailjs) {
+    emailjs.init("ciw0JaRTFINyH7obe");
+  }
+
   renderLocationOptions();
   renderView();
 });
@@ -179,6 +196,7 @@ function renderView() {
   views.login.classList.add('hidden');
   views.pageSelect.classList.add('hidden');
   views.tracker.classList.add('hidden');
+  views.statistics.classList.add('hidden');
 
   if (!state.loggedIn) {
     views.login.classList.remove('hidden');
@@ -186,8 +204,11 @@ function renderView() {
     views.pageSelect.classList.remove('hidden');
   } else if (state.page === 'tracker') {
     views.tracker.classList.remove('hidden');
-    renderLocationOptions(); // Refresh dropdowns
+    renderLocationOptions();
     renderDevices();
+  } else if (state.page === 'statistics') {
+    views.statistics.classList.remove('hidden');
+    renderStatistics();
   }
 }
 
@@ -208,6 +229,9 @@ function loadDevices() {
     });
     state.devices = devicesList;
     renderDevices();
+    
+    // Check and send automatic alerts after devices load
+    checkAndSendAutomaticAlerts();
   }, (error) => {
     console.error("Error listening to devices: ", error);
   });
@@ -516,7 +540,8 @@ function renderDevices() {
     return state.sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
   });
 
-  const totalCols = 7 + state.customColumns.length;
+  const checkboxExtra = state.deleteMode ? 1 : 0;
+  const totalCols = 7 + state.customColumns.length + checkboxExtra;
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align: center; color: var(--text-muted);">No devices found.</td></tr>`;
     return;
@@ -524,12 +549,18 @@ function renderDevices() {
 
   filtered.forEach(device => {
     const tr = document.createElement('tr');
-    let html = `
+    const calClass = getCalibrationClass(device.calibrationDate);
+    let html = '';
+    if (state.deleteMode) {
+      const isChecked = state.selectedDevices.includes(device.id) ? 'checked' : '';
+      html += `<td class="td-checkbox"><input type="checkbox" class="device-select-cb" data-id="${device.id}" ${isChecked}></td>`;
+    }
+    html += `
       <td><strong>${device.serial || '-'}</strong></td>
       <td>${device.type || '-'}</td>
       <td>${device.set || '-'}</td>
       <td>${device.model || '-'}</td>
-      <td>${device.calibrationDate || '-'}</td>
+      <td class="${calClass}">${device.calibrationDate || '-'}</td>
       <td><span style="background: var(--bg-color); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color);">${device.currentLocation || '-'}</span></td>
     `;
     state.customColumns.forEach(col => {
@@ -540,11 +571,23 @@ function renderDevices() {
       <td class="td-actions">
         <button class="btn-primary" onclick="editDevice('${device.id}')">Edit</button>
         <button class="btn-outline" onclick="showHistory('${device.id}')">History</button>
-        <button class="btn-danger" onclick="deleteDevice('${device.id}')">&times;</button>
       </td>`;
     tr.innerHTML = html;
     tbody.appendChild(tr);
   });
+
+  if (state.deleteMode) {
+    tbody.querySelectorAll('.device-select-cb').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const id = e.target.dataset.id;
+        if (e.target.checked) {
+          if (!state.selectedDevices.includes(id)) state.selectedDevices.push(id);
+        } else {
+          state.selectedDevices = state.selectedDevices.filter(i => i !== id);
+        }
+      });
+    });
+  }
 }
 
 // Global functions for inline event handlers
@@ -835,6 +878,9 @@ function renderTableHeaders() {
     { label: 'Current Location',   msId: 'ms-location' }
   ];
   let html = '<tr>';
+  if (state.deleteMode) {
+    html += '<th class="th-checkbox"></th>';
+  }
   defaultCols.forEach(col => {
     html += `<th><div>${col.label}</div><div class="multi-select" id="${col.msId}"><div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">&#9660;</span></div><div class="ms-options hidden"></div></div></th>`;
   });
@@ -883,4 +929,173 @@ async function addCustomColumn() {
   renderCustomFormFields('custom-fields-add', 'add-custom-');
   renderCustomFormFields('custom-fields-edit', 'edit-custom-');
   renderDevices();
+}
+
+// --- Calibration Date Color ---
+
+function getCalibrationClass(calDate) {
+  if (!calDate) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cal = new Date(calDate);
+  const diffDays = (today - cal) / (1000 * 60 * 60 * 24);
+  if (diffDays > 91) return 'cal-red';    // > 3 months
+  if (diffDays > 76) return 'cal-yellow'; // > 2.5 months
+  return 'cal-green';                     // <= 2.5 months
+}
+
+// --- Statistics ---
+
+function navigateToStats() {
+  state.page = 'statistics';
+  renderView();
+}
+
+function renderStatistics() {
+  const tbody = document.getElementById('stats-table-body');
+  const tfoot = document.getElementById('stats-table-foot');
+  if (!tbody || !tfoot) return;
+
+  const allLocations = [...new Set(state.devices.map(d => d.currentLocation || 'Unknown'))].sort();
+  let grandTotal = 0, grandLevel = 0, grandAll = 0;
+  tbody.innerHTML = '';
+
+  allLocations.forEach(loc => {
+    const devs = state.devices.filter(d => (d.currentLocation || 'Unknown') === loc);
+    const totalCount = devs.filter(d => {
+      const t = (d.type || '').toLowerCase();
+      return t.includes('total') || t.includes('توتال');
+    }).length;
+    const levelCount = devs.filter(d => {
+      const t = (d.type || '').toLowerCase();
+      return t.includes('level') || t.includes('ميزان') || t.includes('ليفل');
+    }).length;
+    const allCount = devs.length;
+    grandTotal += totalCount;
+    grandLevel += levelCount;
+    grandAll   += allCount;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${loc}</td>
+      <td class="stats-num">${totalCount}</td>
+      <td class="stats-num">${levelCount}</td>
+      <td class="stats-num stats-grand"><strong>${allCount}</strong></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tfoot.innerHTML = `
+    <tr class="stats-total-row">
+      <td><strong>Grand Total</strong></td>
+      <td class="stats-num"><strong>${grandTotal}</strong></td>
+      <td class="stats-num"><strong>${grandLevel}</strong></td>
+      <td class="stats-num stats-grand"><strong>${grandAll}</strong></td>
+    </tr>
+  `;
+}
+
+// --- Delete Mode ---
+
+function toggleDeleteMode() {
+  if (!state.deleteMode) {
+    state.deleteMode = true;
+    state.selectedDevices = [];
+    document.getElementById('btn-delete-mode').textContent = '🗑 Delete Selected';
+    document.getElementById('btn-cancel-delete').classList.remove('hidden');
+    renderTableHeaders();
+    renderDevices();
+  } else {
+    if (state.selectedDevices.length === 0) {
+      alert('Please select at least one device to delete.');
+      return;
+    }
+    if (confirm(`Are you sure you want to delete ${state.selectedDevices.length} device(s)? This cannot be undone.`)) {
+      bulkDeleteDevices();
+    }
+  }
+}
+
+function cancelDeleteMode() {
+  state.deleteMode = false;
+  state.selectedDevices = [];
+  document.getElementById('btn-delete-mode').textContent = '🗑 Delete';
+  document.getElementById('btn-cancel-delete').classList.add('hidden');
+  renderTableHeaders();
+  renderDevices();
+}
+
+async function bulkDeleteDevices() {
+  if (!db) return;
+  for (const id of state.selectedDevices) {
+    try {
+      await deleteDoc(doc(db, 'devices', id));
+    } catch(e) {
+      console.error('Error deleting device:', e);
+    }
+  }
+  cancelDeleteMode();
+}
+
+// --- Automatic Email Alerts ---
+
+function checkAndSendAutomaticAlerts() {
+  if (!state.devices || state.devices.length === 0) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  const lastSent = localStorage.getItem('lastAlertSentDate');
+
+  // Only send once per day
+  if (lastSent === today) return;
+
+  const redDevices = [];
+  const yellowDevices = [];
+
+  state.devices.forEach(device => {
+    if (!device.calibrationDate) return;
+    const calClass = getCalibrationClass(device.calibrationDate);
+    if (calClass === 'cal-red') redDevices.push(device);
+    if (calClass === 'cal-yellow') yellowDevices.push(device);
+  });
+
+  if (redDevices.length === 0 && yellowDevices.length === 0) {
+    // Everything is fine, mark as checked today so it doesn't keep calculating
+    localStorage.setItem('lastAlertSentDate', today);
+    return;
+  }
+
+  // Send via EmailJS silently in the background
+  if (window.emailjs) {
+    const emailPromises = [];
+
+    // Send individual email for each RED device
+    redDevices.forEach(d => {
+      const body = `=== URGENT: Calibration Required ===\n\n- The device with serial ${d.serial || 'Unknown'} and in the location ${d.currentLocation || 'Unknown'} wants to be collaborated.`;
+      const templateParams = {
+        to_email: "ahmad76saad@gmail.com",
+        message: body
+      };
+      emailPromises.push(emailjs.send("service_44uofyg", "template_6yvfdvs", templateParams));
+    });
+
+    // Send individual email for each YELLOW device
+    yellowDevices.forEach(d => {
+      const body = `=== WARNING: Calibration Approaching ===\n\n- Warning: The time is near for the device with serial ${d.serial || 'Unknown'} in location ${d.currentLocation || 'Unknown'}.`;
+      const templateParams = {
+        to_email: "ahmad76saad@gmail.com",
+        message: body
+      };
+      emailPromises.push(emailjs.send("service_44uofyg", "template_6yvfdvs", templateParams));
+    });
+
+    // Wait for all emails to finish sending
+    Promise.all(emailPromises)
+      .then(function(responses) {
+        console.log(`SUCCESS! ${responses.length} individual automatic alerts sent.`);
+        localStorage.setItem('lastAlertSentDate', today);
+      })
+      .catch(function(error) {
+        console.error('FAILED to send some automatic alerts...', error);
+      });
+  }
 }

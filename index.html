@@ -9,9 +9,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- SheetJS for Excel Parsing -->
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <!-- EmailJS SDK -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+
+<header class="site-header">
+    <div class="site-header-logos">
+        <img src="combined logo.png" alt="DME Logo" class="logo-combined">
+    </div>
+    <div class="site-header-text" dir="rtl">
+        <p class="header-company">شركة دار المعمار للمقاولات</p>
+        <p class="header-manager">مدير المساحة : م/احمد سعد</p>
+    </div>
+</header>
+
   <div class="app-container">
 
     <!-- LOGIN VIEW -->
@@ -33,10 +47,25 @@
     <!-- PAGE SELECT VIEW -->
     <div id="view-page-select" class="view hidden card text-center">
       <h1 class="mb-6">Choose a Page</h1>
-      <div class="button-grid">
-        <button id="btn-page-total" class="btn-primary">Total Devices</button>
-        <button id="btn-page-level" class="btn-primary">Level Devices</button>
-        <button id="btn-logout-1" class="btn-danger mt-4">Logout</button>
+      <div class="image-button-grid">
+        <button id="btn-page-total" class="image-card">
+          <div class="image-wrapper">
+            <img src="Cartoonic total station device.png" alt="Total Station">
+          </div>
+          <span class="image-label">Total Devices اجهزة التوتال</span>
+        </button>
+        <button id="btn-page-level" class="image-card">
+          <div class="image-wrapper">
+            <img src="Cartoonic level device.png" alt="Level">
+          </div>
+          <span class="image-label">Level Devices اجهزة الليفل</span>
+        </button>
+      </div>
+      <div class="button-grid" style="margin-top: 30px;">
+        <button id="btn-page-stats" class="btn-page-stats-premium">
+            📊 View Statistics
+        </button>
+        <button id="btn-logout-1" class="btn-logout-premium">Logout</button>
       </div>
     </div>
 
@@ -50,9 +79,45 @@
         </div>
       </div>
 
-      <!-- Add Device Form -->
-      <div class="card">
-        <h2 class="mb-4">Add or Import Devices</h2>
+      <!-- Search & Sort Actions -->
+      <div class="card top-actions">
+        <div class="search-box">
+          <label for="search-input">Search Devices</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="search-input" placeholder="Search by Serial, Model, etc...">
+            <button id="btn-clear-search" class="btn-outline">Clear</button>
+          </div>
+        </div>
+        <div class="sort-box">
+          <button id="btn-sort" class="btn-primary btn-block" style="height: 42px;">Sort: Ascending</button>
+        </div>
+        <div class="export-box">
+          <button id="btn-export-excel" class="btn-success btn-block" style="height: 42px;">Export to Excel</button>
+        </div>
+        <div class="add-col-box">
+          <button id="btn-add-column" class="btn-outline btn-block" style="height: 42px;">＋ Add Column</button>
+        </div>
+        <div class="delete-box">
+          <button id="btn-delete-mode" class="btn-danger btn-block" style="height: 42px;">🗑 Delete</button>
+          <button id="btn-cancel-delete" class="btn-outline btn-block hidden" style="height: 42px; margin-top: 6px;">✕ Cancel</button>
+        </div>
+      </div>
+
+      <!-- Device Data Table -->
+      <div class="table-responsive">
+        <table id="device-table">
+          <thead>
+            <!-- Headers injected by JS (renderTableHeaders) -->
+          </thead>
+          <tbody id="device-table-body">
+            <!-- Devices injected by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Add Device Form (below table) -->
+      <div class="card" style="margin-top: 24px;">
+        <h2 class="mb-4">Add Device Manually</h2>
         <form id="add-device-form">
           <div class="form-grid">
             <div class="form-group">
@@ -88,7 +153,7 @@
           </div>
           <!-- Custom column fields – injected by JS -->
           <div class="form-grid" id="custom-fields-add"></div>
-          <button type="submit" class="btn-primary mt-4">Add Device Manually</button>
+          <button type="submit" class="btn-primary mt-4">Add Device</button>
         </form>
 
         <div class="upload-container">
@@ -98,37 +163,33 @@
           <span id="upload-status" style="margin-left: 10px; font-size: 0.9rem; color: var(--text-muted);"></span>
         </div>
       </div>
+    </div>
 
-      <!-- Search & Sort Actions -->
-      <div class="card top-actions">
-        <div class="search-box">
-          <label for="search-input">Search Devices</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="search-input" placeholder="Search by Serial, Model, etc...">
-            <button id="btn-clear-search" class="btn-outline">Clear</button>
-          </div>
-        </div>
-        <div class="sort-box">
-          <button id="btn-sort" class="btn-primary btn-block" style="height: 42px;">Sort: Ascending</button>
-        </div>
-        <div class="export-box">
-          <button id="btn-export-excel" class="btn-success btn-block" style="height: 42px;">Export to Excel</button>
-        </div>
-        <div class="add-col-box">
-          <button id="btn-add-column" class="btn-outline btn-block" style="height: 42px;">＋ Add Column</button>
+    <!-- STATISTICS VIEW -->
+    <div id="view-statistics" class="view hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center;" class="mb-6">
+        <h1>Device Statistics</h1>
+        <div>
+          <button id="btn-back-from-stats" class="btn-outline" style="margin-right: 8px;">Back</button>
+          <button id="btn-logout-stats" class="btn-danger">Logout</button>
         </div>
       </div>
-
-      <!-- Device Data Table -->
-      <div class="table-responsive">
-        <table id="device-table">
-          <thead>
-            <!-- Headers injected by JS (renderTableHeaders) -->
-          </thead>
-          <tbody id="device-table-body">
-            <!-- Devices injected by JS -->
-          </tbody>
-        </table>
+      <div class="card">
+        <h2 class="mb-4">Devices by Location</h2>
+        <div class="table-responsive">
+          <table id="stats-table">
+            <thead>
+              <tr>
+                <th>Location</th>
+                <th style="text-align:center;">Total Devices</th>
+                <th style="text-align:center;">Level Devices</th>
+                <th style="text-align:center;">Grand Total</th>
+              </tr>
+            </thead>
+            <tbody id="stats-table-body"></tbody>
+            <tfoot id="stats-table-foot"></tfoot>
+          </table>
+        </div>
       </div>
     </div>
 
