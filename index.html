@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Device Tracking App</title>
@@ -13,18 +14,20 @@
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
 
-<header class="site-header">
+  <header class="site-header">
     <div class="site-header-logos">
-        <img src="combined logo.png" alt="DME Logo" class="logo-combined">
+      <img src="DME.png" alt="DME Logo" class="logo-site">
+      <img src="dmc_curve_logo.jpg" alt="DMC Logo" class="logo-site">
     </div>
     <div class="site-header-text" dir="rtl">
-        <p class="header-company">شركة دار المعمار للمقاولات</p>
-        <p class="header-manager">مدير المساحة : م/احمد سعد</p>
+      <p class="header-company">شركة دار المعمار للمقاولات</p>
+      <p class="header-manager">مدير المساحة : م/احمد سعد</p>
     </div>
-</header>
+  </header>
 
   <div class="app-container">
 
@@ -58,12 +61,12 @@
           <div class="image-wrapper">
             <img src="Cartoonic level device.png" alt="Level">
           </div>
-          <span class="image-label">Level Devices اجهزة الليفل</span>
+          <span class="image-label">Level Devices اجهزة الميزان</span>
         </button>
       </div>
       <div class="button-grid" style="margin-top: 30px;">
         <button id="btn-page-stats" class="btn-page-stats-premium">
-            📊 View Statistics
+          📊 View Statistics
         </button>
         <button id="btn-logout-1" class="btn-logout-premium">Logout</button>
       </div>
@@ -99,7 +102,8 @@
         </div>
         <div class="delete-box">
           <button id="btn-delete-mode" class="btn-danger btn-block" style="height: 42px;">🗑 Delete</button>
-          <button id="btn-cancel-delete" class="btn-outline btn-block hidden" style="height: 42px; margin-top: 6px;">✕ Cancel</button>
+          <button id="btn-cancel-delete" class="btn-outline btn-block hidden" style="height: 42px; margin-top: 6px;">✕
+            Cancel</button>
         </div>
       </div>
 
@@ -166,7 +170,7 @@
     </div>
 
     <!-- STATISTICS VIEW -->
-    <div id="view-statistics" class="view hidden">
+    <div id="view-statistics" class="view hidden" style="margin-top: 40px;">
       <div style="display: flex; justify-content: space-between; align-items: center;" class="mb-6">
         <h1>Device Statistics</h1>
         <div>
@@ -183,7 +187,6 @@
                 <th>Location</th>
                 <th style="text-align:center;">Total Devices</th>
                 <th style="text-align:center;">Level Devices</th>
-                <th style="text-align:center;">Grand Total</th>
               </tr>
             </thead>
             <tbody id="stats-table-body"></tbody>
@@ -273,4 +276,5 @@
 
   <script type="module" src="script.js"></script>
 </body>
+
 </html>

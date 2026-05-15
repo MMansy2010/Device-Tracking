@@ -957,7 +957,7 @@ function renderStatistics() {
   if (!tbody || !tfoot) return;
 
   const allLocations = [...new Set(state.devices.map(d => d.currentLocation || 'Unknown'))].sort();
-  let grandTotal = 0, grandLevel = 0, grandAll = 0;
+  let grandTotal = 0, grandLevel = 0;
   tbody.innerHTML = '';
 
   allLocations.forEach(loc => {
@@ -970,27 +970,23 @@ function renderStatistics() {
       const t = (d.type || '').toLowerCase();
       return t.includes('level') || t.includes('ميزان') || t.includes('ليفل');
     }).length;
-    const allCount = devs.length;
     grandTotal += totalCount;
     grandLevel += levelCount;
-    grandAll   += allCount;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${loc}</td>
       <td class="stats-num">${totalCount}</td>
       <td class="stats-num">${levelCount}</td>
-      <td class="stats-num stats-grand"><strong>${allCount}</strong></td>
     `;
     tbody.appendChild(tr);
   });
 
   tfoot.innerHTML = `
     <tr class="stats-total-row">
-      <td><strong>Grand Total</strong></td>
+      <td><strong>Total</strong></td>
       <td class="stats-num"><strong>${grandTotal}</strong></td>
       <td class="stats-num"><strong>${grandLevel}</strong></td>
-      <td class="stats-num stats-grand"><strong>${grandAll}</strong></td>
     </tr>
   `;
 }
