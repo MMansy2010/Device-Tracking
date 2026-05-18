@@ -154,6 +154,13 @@
                 <button type="button" id="btn-add-loc-new" class="btn-success">Add</button>
               </div>
             </div>
+            <div class="form-group">
+              <label for="dev-email-status">Email Alerts</label>
+              <select id="dev-email-status">
+                <option value="enabled">🔔 Enabled</option>
+                <option value="disabled">🔕 Muted</option>
+              </select>
+            </div>
           </div>
           <!-- Custom column fields – injected by JS -->
           <div class="form-grid" id="custom-fields-add"></div>
@@ -260,6 +267,13 @@
             <label for="edit-dev-location">Current Location</label>
             <select id="edit-dev-location" required>
               <option value="">Select Location</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="edit-dev-email-status">Email Alerts</label>
+            <select id="edit-dev-email-status">
+              <option value="enabled">🔔 Enabled</option>
+              <option value="disabled">🔕 Muted</option>
             </select>
           </div>
         </div>

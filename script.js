@@ -417,12 +417,15 @@ async function handleAddDevice(e) {
         const input = document.getElementById(`add-custom-${col}`);
         if (input) customData[col] = input.value;
       });
+      const emailStatus = document.getElementById('dev-email-status').value;
+      const emailDisabled = emailStatus === 'disabled';
       try {
         await addDoc(collection(db, 'devices'), {
           serial, type, set: setBrand, model,
           calibrationDate: calDate,
           currentLocation: location,
           customData,
+          emailDisabled,
           moveHistory: [{
             date: new Date().toISOString().split('T')[0],
             locationFrom: 'Initial Entry',
@@ -541,7 +544,7 @@ function renderDevices() {
   });
 
   const checkboxExtra = state.deleteMode ? 1 : 0;
-  const totalCols = 7 + state.customColumns.length + checkboxExtra;
+  const totalCols = 8 + state.customColumns.length + checkboxExtra;
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align: center; color: var(--text-muted);">No devices found.</td></tr>`;
     return;
@@ -567,6 +570,18 @@ function renderDevices() {
       const val = (device.customData && device.customData[col]) ? device.customData[col] : '-';
       html += `<td>${val}</td>`;
     });
+
+    const emailMuted = device.emailDisabled === true;
+    const emailBtnClass = emailMuted ? 'btn-email-stopped' : 'btn-email-active';
+    const emailBtnText = emailMuted ? '🔕 Muted' : '🔔 Enabled';
+    html += `
+      <td>
+        <button class="btn-email-status ${emailBtnClass}" onclick="toggleEmailAlerts('${device.id}', ${emailMuted})">
+          ${emailBtnText}
+        </button>
+      </td>
+    `;
+
     html += `
       <td class="td-actions">
         <button class="btn-primary" onclick="editDevice('${device.id}')">Edit</button>
@@ -593,6 +608,21 @@ function renderDevices() {
 // Global functions for inline event handlers
 window.deleteDevice = deleteDevice;
 
+window.toggleEmailAlerts = async function(id, isCurrentlyMuted) {
+  if (db) {
+    try {
+      await updateDoc(doc(db, 'devices', id), {
+        emailDisabled: !isCurrentlyMuted
+      });
+    } catch (e) {
+      console.error("Error toggling email alert status: ", e);
+      alert("Failed to toggle email alert status.");
+    }
+  } else {
+    alert("Database not connected!");
+  }
+};
+
 window.editDevice = function(id) {
   const device = state.devices.find(d => d.id === id);
   if (!device) return;
@@ -603,6 +633,7 @@ window.editDevice = function(id) {
   document.getElementById('edit-dev-set').value = device.set || '';
   document.getElementById('edit-dev-model').value = device.model || '';
   document.getElementById('edit-dev-cal-date').value = device.calibrationDate || '';
+  document.getElementById('edit-dev-email-status').value = device.emailDisabled === true ? 'disabled' : 'enabled';
 
   renderLocationOptions();
   const locSelect = document.getElementById('edit-dev-location');
@@ -646,13 +677,17 @@ async function handleEditDeviceSubmit(e) {
     if (input) customData[col] = input.value;
   });
 
+  const emailStatus = document.getElementById('edit-dev-email-status').value;
+  const emailDisabled = emailStatus === 'disabled';
+
   if (id && db) {
     try {
       await updateDoc(doc(db, 'devices', id), {
         serial, type, set: setBrand, model,
         calibrationDate: calDate,
         currentLocation: location,
-        customData
+        customData,
+        emailDisabled
       });
       closeEditModal();
     } catch(err) {
@@ -888,6 +923,7 @@ function renderTableHeaders() {
     const msId = `ms-custom-${col.replace(/\s+/g, '-')}`;
     html += `<th><div>${col}</div><div class="multi-select" id="${msId}"><div class="ms-header"><span class="ms-title">All</span> <span class="ms-arrow">&#9660;</span></div><div class="ms-options hidden"></div></div></th>`;
   });
+  html += '<th>Email Alerts</th>';
   html += '<th>Actions</th></tr>';
   thead.innerHTML = html;
   // Re-attach dropdown toggle listeners
@@ -1067,6 +1103,8 @@ function checkAndSendAutomaticAlerts() {
 
   state.devices.forEach(device => {
     if (!device.calibrationDate) return;
+    if (device.emailDisabled === true) return; // Skip email alerts for muted devices
+    
     const calClass = getCalibrationClass(device.calibrationDate);
     
     if (calClass === 'cal-red') {
