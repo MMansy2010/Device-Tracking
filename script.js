@@ -1053,6 +1053,15 @@ function checkAndSendAutomaticAlerts() {
     console.error("Error parsing sentYellowAlerts", e);
   }
 
+  // Track red alerts sent to only send every 3 days
+  let sentRed = {};
+  try {
+    const saved = localStorage.getItem('sentRedAlerts');
+    if (saved) sentRed = JSON.parse(saved);
+  } catch(e) {
+    console.error("Error parsing sentRedAlerts", e);
+  }
+
   const redDevices = [];
   const yellowDevices = [];
 
@@ -1061,8 +1070,16 @@ function checkAndSendAutomaticAlerts() {
     const calClass = getCalibrationClass(device.calibrationDate);
     
     if (calClass === 'cal-red') {
-      // Red devices are sent every day (whenever this check runs on a new day)
-      redDevices.push(device);
+      // Red devices are sent every 3 days
+      const lastSentDate = sentRed[device.id];
+      if (!lastSentDate) {
+        redDevices.push(device);
+      } else {
+        const diffDays = (new Date(today) - new Date(lastSentDate)) / (1000 * 60 * 60 * 24);
+        if (diffDays >= 3) {
+          redDevices.push(device);
+        }
+      }
     } else if (calClass === 'cal-yellow') {
       // Yellow devices are sent only once per calibration date
       if (sentYellow[device.id] !== device.calibrationDate) {
@@ -1081,7 +1098,7 @@ function checkAndSendAutomaticAlerts() {
   if (window.emailjs) {
     const emailPromises = [];
 
-    // Send individual email for each RED device (Every Day)
+    // Send individual email for each RED device (Every 3 Days)
     redDevices.forEach(d => {
       const body = `=== URGENT: Calibration Required ===
 
@@ -1132,6 +1149,13 @@ Please plan for calibration soon to avoid any operational delays.`;
         console.log(`SUCCESS! ${responses.length} automatic alerts sent.`);
         // Mark today as done
         localStorage.setItem('lastAlertSentDate', today);
+        
+        // Mark today as the last sent date for red alerts that were successfully sent
+        redDevices.forEach(d => {
+          sentRed[d.id] = today;
+        });
+        localStorage.setItem('sentRedAlerts', JSON.stringify(sentRed));
+
         // Save updated yellow tracking
         localStorage.setItem('sentYellowAlerts', JSON.stringify(sentYellow));
       })
